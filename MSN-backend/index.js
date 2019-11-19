@@ -1,6 +1,7 @@
 const express = require('express')
 const cors = require('cors')
 const bodyParser = require('body-parser');
+const openssl = require('openssl-nodejs');
 
 var app = express()
 
@@ -97,7 +98,17 @@ app.get('/chat/messages', function (req, res) {
     chat[myName].messages[yourName] = []
   }
   let messages = chat[myName].messages[yourName]
-  res.send(messages)
+  var bufferEncEntrada = Buffer.from(JSON.stringify(messages))
+  openssl(['enc', '-aes-128-ecb', '-pbkdf2', '-in', { name:'claro.txt', buffer: bufferEncEntrada }, '-out', 'cifrado.txt',  '-K', '8E3261237A2414D1F40DDECF917B4C15'], function (err) {
+    console.log('Encryption')
+    console.log(err.toString())
+    // Decription Phase
+    openssl(['enc', '-aes-128-ecb', '-pbkdf2', '-d', '-in', 'cifrado.txt', '-out', 'decifrado.txt', '-K', '8E3261237A2414D1F40DDECF917B4C15'], function (err) {
+      console.log('Decryption')
+      console.log(err.toString())
+    })
+    res.send(messages)
+  })
 })
 
 // SENT MESSAGE
