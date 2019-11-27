@@ -1,1 +1,0 @@
-[{"message":"Ouuuuuuuu","sent":true},{"message":"Fala","sent":false},{"message":"Eai","sent":true},{"message":"Fez o trabalho?","sent":true},{"message":"Não","sent":false}]
