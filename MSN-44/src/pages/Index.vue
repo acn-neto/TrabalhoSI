@@ -209,6 +209,15 @@ export default {
 
   created () {
     setInterval(this.getMessages, 1000)
+    setInterval(this.getPeople, 1000)
+    window.onbeforeunload = function (e) {
+      if (this.name) {
+        this.$axios.post('logout', {
+          name: this.name,
+          avatar: this.myAvatar
+        })
+      }
+    }
   },
 
   methods: {
@@ -223,7 +232,7 @@ export default {
           avatar: this.myAvatar
         })
           .then(response => {
-            this.getPeople()
+            this.online = true
           })
           .catch(error => {
             console.error(error)
@@ -249,26 +258,30 @@ export default {
     },
 
     getPeople () {
-      this.$axios.get('people')
-        .then(response => {
-          this.people.online = response.data.online.filter(el => {
-            return el.name.replace(/ /g, '').toLowerCase() !== this.name.replace(/ /g, '').toLowerCase()
+      if (this.online) {
+        this.$axios.get('people')
+          .then(response => {
+            this.online = true
+            this.people.online = response.data.online.filter(el => {
+              return el.name.replace(/ /g, '').toLowerCase() !== this.name.replace(/ /g, '').toLowerCase()
+            })
+            this.people.offline = response.data.offline.filter(el => {
+              return el.name.replace(/ /g, '').toLowerCase() !== this.name.replace(/ /g, '').toLowerCase()
+            })
           })
-          this.people.offline = response.data.offline.filter(el => {
-            return el.name.replace(/ /g, '').toLowerCase() !== this.name.replace(/ /g, '').toLowerCase()
+          .catch(error => {
+            this.online = false
+            console.error(error)
+            this.$q.notify({
+              color: 'negative',
+              textColor: 'white',
+              icon: 'report_problem',
+              message: 'Erro na conexão com o servidor!',
+              position: 'top',
+              timeout: 3000
+            })
           })
-        })
-        .catch(error => {
-          console.error(error)
-          this.$q.notify({
-            color: 'negative',
-            textColor: 'white',
-            icon: 'report_problem',
-            message: 'Erro na conexão com o servidor!',
-            position: 'top',
-            timeout: 3000
-          })
-        })
+      }
     },
 
     getAllMessages (person) {
@@ -341,7 +354,7 @@ export default {
     },
 
     getMessages () {
-      if (this.online) {
+      if (this.online && !!this.yourName) {
         this.$axios.get('message', { params: {
           myName: this.name,
           yourName: this.yourName,

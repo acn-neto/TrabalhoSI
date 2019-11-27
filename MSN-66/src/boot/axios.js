@@ -3,7 +3,7 @@ import axios from 'axios'
 export default async ({ Vue }) => {
   const axiosInstance = axios.create({
     // withCredentials: true,
-    baseURL: 'http://localhost:8000/chat/',
+    baseURL: 'http://localhost:8066/chat/',
     crossdomain: true
   })
 
