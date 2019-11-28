@@ -238,13 +238,47 @@ app.get('/chat/messages', function (req, res) {
     res.send('EMISSOR OU RECEPTOR INVALIDO')
   }
 
+  if (!chat[myName].keys[yourName] || !chat[myName].ivs[yourName]) {
+    res.status(400)
+    res.send('NAO EXISTE CHAVE SIMETRICA!')
+  }
+
   if (!chat[myName].messages[yourName]) {
     chat[myName].messages[yourName] = []
     chat[yourName].messages[myName] = []
   }
 
-  let messages = chat[myName].messages[yourName]
-  res.send(messages)
+  var key = chat[myName].keys[yourName]
+  var iv = chat[myName].ivs[yourName]
+  var messages = chat[myName].messages[yourName]
+  var messagesJSON = JSON.stringify(messages)
+
+  fs.writeFileSync("./openssl/plainTexts.txt", messagesJSON, "utf8")
+  openssl(['enc', '-aes-128-cbc', '-pbkdf2' ,'-in', 'plainTexts.txt', '-out', 'cipherTexts.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
+    console.log('CIPHER THE MESSAGEs')
+    console.log(err.toString())
+
+    var cipherTexts = fs.readFileSync("./openssl/cipherTexts.txt")
+    var cipherTextsEmBase64 = new Buffer(cipherTexts).toString('base64')
+
+    var messagesHash = bcrypt.hashSync(cipherTextsEmBase64, saltRounds)
+    
+      fs.writeFileSync("./openssl/hashs.txt", messagesHash, "utf8")
+    
+      openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hashs.txt', '-out', 'hashsSigned.txt'], function (err) {
+        console.log('SIGNING THE HASHs')
+        console.log(err.toString())
+    
+        var hashsSigned = fs.readFileSync("./openssl/hashsSigned.txt")
+        var hashsEmBase64 = new Buffer(hashsSigned).toString('base64')
+    
+        let myBody = {
+          messageJson: cipherTextsEmBase64,
+          messageHash: hashsEmBase64
+        }
+        res.send(myBody)
+      })
+  })
 })
 
 // RODA O SERVIDOR

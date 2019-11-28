@@ -266,19 +266,83 @@ app.get('/chat/message', function (req, res) {
     res.send('WRONG BACKEND')
   }
 
-  axios.get(`http://localhost:8000/chat/messages?myName=${myName}&yourName=${yourName}`)
-    .then(response => {
-      myChat.messages[yourName] = response.data
-      fs.writeFileSync("./db.json", JSON.stringify(myChat), "utf8")
-      let messages = myChat.messages[yourName].filter((el, i) => {
-        return i >= index
+  var getMessages = () => {
+    axios.get(`http://localhost:8000/chat/messages?myName=${myName}&yourName=${yourName}`)
+      .then(response => {
+        var cipherTextsEmBase64 = response.data.messageJson
+        var cipherTexts = new Buffer(cipherTextsEmBase64, 'base64')
+
+        var hashsSignedEmBase64 = response.data.messageHash
+        var hashsSigned = new Buffer(hashsSignedEmBase64, 'base64')
+
+        var key = myChat.keys[yourName]
+        var iv = myChat.ivs[yourName]
+
+        fs.writeFileSync("./openssl/cipherTexts.txt", cipherTexts)
+        openssl(['enc', '-aes-128-cbc', '-pbkdf2', '-d' ,'-in', 'cipherTexts.txt', '-out', 'plainTexts.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
+          console.log('DECIPHER THE MESSAGEs')
+          console.log(err.toString())
+
+          var messagesJson = fs.readFileSync("./openssl/plainTexts.txt", "utf8")
+
+          fs.writeFileSync("./openssl/hashsSigned.txt", hashsSigned)
+          openssl(['rsautl', '-verify', '-inkey', 'ac-pukey.pem', '-pubin', '-in', 'hashsSigned.txt', '-out', 'hashsVerified.txt'], function (err) {
+            console.log('DECYPHER THE HASHs SIGNED')
+            console.log(err.toString())
+
+            var messagesHash = fs.readFileSync("./openssl/hashsVerified.txt", "utf8")
+
+            if(!bcrypt.compareSync(cipherTextsEmBase64, messagesHash)) {
+              res.status(401)
+              console.log('INTEGRIDADE COMPROMETIDA')
+              res.send('INTEGRIDADE COMPROMETIDA')
+            } else {
+              let body = JSON.parse(messagesJson)
+
+              myChat.messages[yourName] = body
+              fs.writeFileSync("./db.json", JSON.stringify(myChat), "utf8")
+              let messages2 = myChat.messages[yourName].filter((el, i) => {
+                return i >= index
+              })
+              res.send(messages2)
+            }
+          })
+        })
       })
-      res.send(messages)
-    })
-    .catch(error => {
-      res.status(400)
-      res.send('ERRO AO CONECTAR AO SERVER')
-    })
+      .catch(error => {
+        res.status(400)
+        res.send('ERRO AO CONECTAR AO SERVER')
+      })
+  }
+
+  if (!myChat.keys[yourName] || !myChat.ivs[yourName]) {
+    axios.get(`http://localhost:8000/keys?myName=${myName}&yourName=${yourName}`)
+      .then(response => {
+        let emBase64 = response.data
+        var cipherKey = new Buffer(emBase64, 'base64')
+  
+        fs.writeFileSync("./openssl/theKeyCipher.txt", cipherKey)
+  
+        openssl(['rsautl', '-decrypt', '-inkey', 'myPK.pem', '-in', 'theKeyCipher.txt', '-out', 'theKey.txt'], function (err) {
+          console.log('DECIPHER THE SYMMETRIC KEY')
+          console.log(err.toString())
+
+          let messageJson = fs.readFileSync("./openssl/theKey.txt", "utf8")
+          let body = JSON.parse(messageJson)
+
+          myChat.keys[yourName] = body.key
+          myChat.ivs[yourName] = body.iv
+          fs.writeFileSync("./db.json", JSON.stringify(myChat), "utf8")
+          getMessages()
+        })
+      })
+      .catch(error => {
+        res.status(400)
+        res.send('ERRO AO CONECTAR AO SERVER')
+      })
+  } else {
+    getMessages()
+  }
 })
 
 // RODA O SERVIDOR
