@@ -72,6 +72,8 @@ app.post('/chat/login', function (req, res) {
     myChat.name = req.body.name
     myChat.avatar = req.body.avatar
     myChat.messages = {}
+    myChat.ivs = {}
+    myChat.keys = {}
     fs.writeFileSync("./db.json", JSON.stringify(myChat), "utf8")
 
     extra = fs.readFileSync("./openssl/myPU.pem", "utf8")
@@ -130,10 +132,10 @@ app.get('/chat/people', function (req, res) {
 
 // SENT MESSAGE
 app.post('/chat/message', function (req, res) {
-  let myName = req.body.myName.replace(/ /g,'').toLowerCase()
-  let yourName = req.body.yourName.replace(/ /g,'').toLowerCase()
-  let chatName = myChat.name.replace(/ /g,'').toLowerCase()
-  let message = req.body.message
+  var myName = req.body.myName.replace(/ /g,'').toLowerCase()
+  var yourName = req.body.yourName.replace(/ /g,'').toLowerCase()
+  var chatName = myChat.name.replace(/ /g,'').toLowerCase()
+  var message = req.body.message
 
   // CONECTOU NO BACKEND ERRADO
   if (myName !== chatName) {
@@ -141,46 +143,77 @@ app.post('/chat/message', function (req, res) {
     res.send('WRONG BACKEND')
   }
 
-  let messageJson = JSON.stringify({
-    myName: myName,
-    yourName: yourName,
-    message: message
-  })
+  var sendMessage = () => {
+    let messageJson = JSON.stringify({
+      myName: myName,
+      yourName: yourName,
+      message: message
+    })
+  
+    // TESTE DE INTEGRIDADE
+    let FAKEmessageJson = JSON.stringify({
+      myName: myName,
+      yourName: yourName,
+      message: message + 'BATATA'
+    })
+  
+    var messageHash = bcrypt.hashSync(messageJson, saltRounds)
+  
+    fs.writeFileSync("./openssl/hash.txt", messageHash, "utf8")
+  
+    openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hash.txt', '-out', 'hashSigned.txt'], function (err) {
+      console.log('SIGNING THE HASH')
+      console.log(err.toString())
+  
+      var hashSigned = fs.readFileSync("./openssl/hashSigned.txt")
+      var emBase64 = new Buffer(hashSigned).toString('base64')
+  
+      let myBody = {
+        // TESTE DE INTEGRIDADE ****************************************************************************************
+        // messageJson: FAKEmessageJson,
+        messageJson: messageJson,
+        messageHash: emBase64,
+        id: myName
+      }
+      axios.post('http://localhost:8000/chat/message', myBody)
+        .then(response => {
+          res.send(req.body)
+        })
+        .catch(error => {
+          res.status(400)
+          res.send('ERRO AO CONECTAR AO SERVER')
+        })
+    })
+  }
 
-  // TESTE DE INTEGRIDADE
-  let FAKEmessageJson = JSON.stringify({
-    myName: myName,
-    yourName: yourName,
-    message: message + 'BATATA'
-  })
-
-  var messageHash = bcrypt.hashSync(messageJson, saltRounds)
-
-  fs.writeFileSync("./openssl/hash.txt", messageHash, "utf8")
-
-  openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hash.txt', '-out', 'hashSigned.txt'], function (err) {
-    console.log('SIGNING THE HASH')
-    console.log(err.toString())
-
-    var hashSigned = fs.readFileSync("./openssl/hashSigned.txt")
-    var emBase64 = new Buffer(hashSigned).toString('base64')
-
-    let myBody = {
-      // TESTE DE INTEGRIDADE ****************************************************************************************
-      // messageJson: FAKEmessageJson,
-      messageJson: messageJson,
-      messageHash: emBase64,
-      id: myName
-    }
-    axios.post('http://localhost:8000/chat/message', myBody)
+  if (!myChat.keys[yourName] || !myChat.ivs[yourName]) {
+    axios.get(`http://localhost:8000/keys?myName=${myName}&yourName=${yourName}`)
       .then(response => {
-        res.send(req.body)
+        let emBase64 = response.data
+        var cipherKey = new Buffer(emBase64, 'base64')
+  
+        fs.writeFileSync("./openssl/theKeyCipher.txt", cipherKey)
+  
+        openssl(['rsautl', '-decrypt', '-inkey', 'myPK.pem', '-in', 'theKeyCipher.txt', '-out', 'theKey.txt'], function (err) {
+          console.log('DECIPHER THE SYMMETRIC KEY')
+          console.log(err.toString())
+
+          let messageJson = fs.readFileSync("./openssl/theKey.txt", "utf8")
+          let body = JSON.parse(messageJson)
+
+          myChat.keys[yourName] = body.key
+          myChat.ivs[yourName] = body.iv
+          fs.writeFileSync("./db.json", JSON.stringify(myChat), "utf8")
+          sendMessage()
+        })
       })
       .catch(error => {
         res.status(400)
         res.send('ERRO AO CONECTAR AO SERVER')
       })
-  })
+  } else {
+    sendMessage()
+  }
 })
 
 // GET ALL MESSAGES

@@ -13,6 +13,9 @@ var fs = require("fs");
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
 
+// RANDOM KEYS IN HEX
+const crypto = require('crypto')
+
 // SERVER PREPARATIONS
 var app = express()
 
@@ -41,11 +44,46 @@ if (!chat.certificate) {
   fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
 }
 
+function randomKey() {
+  let len = 32
+  return crypto
+    .randomBytes(Math.ceil(len / 2))
+    .toString('hex')
+    .slice(0, len)
+}
 /***************************************************************** APIs *****************************************************************/
 
 // SEND AC CERTIFICATE
 app.get('/certificate', function (req, res) {
   res.download('./openssl/myPU.pem', 'ac-pukey.pem')
+})
+
+// GET SYMMETRIC KEY
+app.get('/keys', function (req, res) {
+  var myName = req.query.myName.replace(/ /g,'').toLowerCase()
+  let yourName = req.query.yourName.replace(/ /g,'').toLowerCase()
+
+  if (!chat[myName].keys[yourName] || !chat[myName].ivs[yourName]) {
+    chat[myName].keys[yourName] = randomKey()
+    chat[yourName].keys[myName] = chat[myName].keys[yourName]
+    chat[myName].ivs[yourName] = randomKey()
+    chat[yourName].ivs[myName] = chat[myName].ivs[yourName]
+
+    fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
+  }
+
+  let messageJson = JSON.stringify({ key: chat[myName].keys[yourName], iv: chat[myName].ivs[yourName] })
+  fs.writeFileSync("./openssl/theKey.txt", messageJson, "utf8")
+  openssl(['rsautl', '-encrypt', '-inkey', `${myName}-pu.pem`, '-pubin', '-in', 'theKey.txt', '-out', 'theKeyCipher.txt'], function (err) {
+    console.log('CYPHER THE SYMMETRIC KEY')
+    console.log(err.toString())
+
+    var cipherKey = fs.readFileSync("./openssl/theKeyCipher.txt")
+    var emBase64 = new Buffer(cipherKey).toString('base64')
+    
+    res.status(200)
+    res.send(emBase64)
+  })
 })
 
 // LOGIN
@@ -77,7 +115,9 @@ app.post('/chat/login', function (req, res) {
     chat[id] = {
       name: name,
       avatar: avatar,
-      messages: {}
+      messages: {},
+      keys: {},
+      ivs: {}
     }
     if (extra) {
       fs.writeFileSync(`./openssl/${id}-pu.pem`, extra, "utf8")
