@@ -156,18 +156,21 @@ app.post('/chat/message', function (req, res) {
 
   var messageHash = bcrypt.hashSync(messageJson, saltRounds)
 
-  var bufferHash = Buffer.from(messageHash)
-  openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in',  { name:'hash.txt', buffer: bufferHash }, '-out', 'hashAssinado.txt'], function (err) {
+  fs.writeFileSync("./openssl/hash.txt", messageHash, "utf8")
+
+  openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hash.txt', '-out', 'hashSigned.txt'], function (err) {
     console.log('SIGNING THE HASH')
     console.log(err.toString())
 
-    var hashSigned = fs.readFileSync("./openssl/hashAssinado.txt", "utf8")
+    var hashSigned = fs.readFileSync("./openssl/hashSigned.txt")
+    var emBase64 = new Buffer(hashSigned).toString('base64')
 
     let myBody = {
       // TESTE DE INTEGRIDADE ****************************************************************************************
       // messageJson: FAKEmessageJson,
       messageJson: messageJson,
-      messageHash: hashSigned
+      messageHash: emBase64,
+      id: myName
     }
     axios.post('http://localhost:8000/chat/message', myBody)
       .then(response => {

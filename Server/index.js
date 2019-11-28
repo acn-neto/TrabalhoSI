@@ -131,14 +131,16 @@ app.get('/chat/people', function (req, res) {
 // SENT MESSAGE
 app.post('/chat/message', function (req, res) {
   let messageJson = req.body.messageJson
-  let hashSigned = req.body.messageHash
+  let emBase64 = req.body.messageHash
+  var hashSigned = new Buffer(emBase64, 'base64')
+  var id = req.body.id
 
-  fs.writeFileSync("./openssl/hashSigned.txt", hashSigned, "utf8")
-  openssl(['rsautl', '-verify', '-inkey', 'teste.pem', '-pubin', '-in', 'hashSigned.txt', '-out', 'hashDecypher.txt'], function (err) {
+  fs.writeFileSync("./openssl/hashSigned.txt", hashSigned)
+  openssl(['rsautl', '-verify', '-inkey', `${id}-pu.pem`, '-pubin', '-in', 'hashSigned.txt', '-out', 'hashVerified.txt'], function (err) {
     console.log('DECYPHER THE HASH SIGNED')
     console.log(err.toString())
 
-    var messageHash = fs.readFileSync("./openssl/hashDecypher.txt", "utf8")
+    var messageHash = fs.readFileSync("./openssl/hashVerified.txt", "utf8")
 
     if(!bcrypt.compareSync(messageJson, messageHash)) {
       res.status(401)
