@@ -170,46 +170,61 @@ app.get('/chat/people', function (req, res) {
 
 // SENT MESSAGE
 app.post('/chat/message', function (req, res) {
-  let messageJson = req.body.messageJson
-  let emBase64 = req.body.messageHash
-  var hashSigned = new Buffer(emBase64, 'base64')
-  var id = req.body.id
+  let cipherTextEmBase64 = req.body.messageJson
+  var cipherText = new Buffer(cipherTextEmBase64, 'base64')
 
-  fs.writeFileSync("./openssl/hashSigned.txt", hashSigned)
-  openssl(['rsautl', '-verify', '-inkey', `${id}-pu.pem`, '-pubin', '-in', 'hashSigned.txt', '-out', 'hashVerified.txt'], function (err) {
-    console.log('DECYPHER THE HASH SIGNED')
+  let hashSignedEmBase64 = req.body.messageHash
+  var hashSigned = new Buffer(hashSignedEmBase64, 'base64')
+
+  var myName = req.body.myName
+  var yourName = req.body.yourName
+
+  var key = chat[myName].keys[yourName]
+  var iv = chat[myName].ivs[yourName]
+
+  fs.writeFileSync("./openssl/cipherText.txt", cipherText)
+  openssl(['enc', '-aes-128-cbc', '-pbkdf2', '-d' ,'-in', 'cipherText.txt', '-out', 'plainText.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
+    console.log('DECIPHER THE MESSAGE')
     console.log(err.toString())
 
-    var messageHash = fs.readFileSync("./openssl/hashVerified.txt", "utf8")
+    var messageJson = fs.readFileSync("./openssl/plainText.txt", "utf8")
 
-    if(!bcrypt.compareSync(messageJson, messageHash)) {
-      res.status(401)
-      console.log('INTEGRIDADE COMPROMETIDA')
-      res.send('INTEGRIDADE COMPROMETIDA')
-    } else {
-      let body = JSON.parse(messageJson)
+    fs.writeFileSync("./openssl/hashSigned.txt", hashSigned)
+    openssl(['rsautl', '-verify', '-inkey', `${myName}-pu.pem`, '-pubin', '-in', 'hashSigned.txt', '-out', 'hashVerified.txt'], function (err) {
+      console.log('DECYPHER THE HASH SIGNED')
+      console.log(err.toString())
   
-      let myName = body.myName.replace(/ /g,'').toLowerCase()
-      let yourName = body.yourName.replace(/ /g,'').toLowerCase()
-      let message = body.message
+      var messageHash = fs.readFileSync("./openssl/hashVerified.txt", "utf8")
+  
+      if(!bcrypt.compareSync(cipherTextEmBase64, messageHash)) {
+        res.status(401)
+        console.log('INTEGRIDADE COMPROMETIDA')
+        res.send('INTEGRIDADE COMPROMETIDA')
+      } else {
+        let body = JSON.parse(messageJson)
     
-      if (!chat[myName] || !chat[yourName]) {
-        res.status(400)
-        res.send('EMISSOR OU RECEPTOR INVALIDO')
+        let myName = body.myName.replace(/ /g,'').toLowerCase()
+        let yourName = body.yourName.replace(/ /g,'').toLowerCase()
+        let message = body.message
+      
+        if (!chat[myName] || !chat[yourName]) {
+          res.status(400)
+          res.send('EMISSOR OU RECEPTOR INVALIDO')
+        }
+      
+        if (!chat[myName].messages[yourName]) {
+          chat[myName].messages[yourName] = []
+          chat[yourName].messages[myName] = []
+        }
+      
+        chat[myName].messages[yourName].push({ sent: true, message: message })
+        chat[yourName].messages[myName].push({ sent: false, message: message })
+      
+        fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
+      
+        res.send(req.body)
       }
-    
-      if (!chat[myName].messages[yourName]) {
-        chat[myName].messages[yourName] = []
-        chat[yourName].messages[myName] = []
-      }
-    
-      chat[myName].messages[yourName].push({ sent: true, message: message })
-      chat[yourName].messages[myName].push({ sent: false, message: message })
-    
-      fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
-    
-      res.send(req.body)
-    }
+    })
   })
 })
 

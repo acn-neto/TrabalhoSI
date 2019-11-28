@@ -156,33 +156,48 @@ app.post('/chat/message', function (req, res) {
       yourName: yourName,
       message: message + 'BATATA'
     })
-  
-    var messageHash = bcrypt.hashSync(messageJson, saltRounds)
-  
-    fs.writeFileSync("./openssl/hash.txt", messageHash, "utf8")
-  
-    openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hash.txt', '-out', 'hashSigned.txt'], function (err) {
-      console.log('SIGNING THE HASH')
+
+    // FAZ CIFRAGEM SIMETRICA
+    var key = myChat.keys[yourName]
+    var iv = myChat.ivs[yourName]
+
+    fs.writeFileSync("./openssl/plainText.txt", messageJson, "utf8")
+    openssl(['enc', '-aes-128-cbc', '-pbkdf2' ,'-in', 'plainText.txt', '-out', 'cipherText.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
+      console.log('CIPHER THE MESSAGE')
       console.log(err.toString())
-  
-      var hashSigned = fs.readFileSync("./openssl/hashSigned.txt")
-      var emBase64 = new Buffer(hashSigned).toString('base64')
-  
-      let myBody = {
-        // TESTE DE INTEGRIDADE ****************************************************************************************
-        // messageJson: FAKEmessageJson,
-        messageJson: messageJson,
-        messageHash: emBase64,
-        id: myName
-      }
-      axios.post('http://localhost:8000/chat/message', myBody)
-        .then(response => {
-          res.send(req.body)
-        })
-        .catch(error => {
-          res.status(400)
-          res.send('ERRO AO CONECTAR AO SERVER')
-        })
+
+      var cipherText = fs.readFileSync("./openssl/cipherText.txt")
+      var cipherTextEmBase64 = new Buffer(cipherText).toString('base64')
+      
+
+      // FAZ O HASH E ASSINA
+      // TESTE DE INTEGRIDADE ****************************************************************************************
+      var messageHash = bcrypt.hashSync(cipherTextEmBase64, saltRounds)
+    
+      fs.writeFileSync("./openssl/hash.txt", messageHash, "utf8")
+    
+      openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hash.txt', '-out', 'hashSigned.txt'], function (err) {
+        console.log('SIGNING THE HASH')
+        console.log(err.toString())
+    
+        var hashSigned = fs.readFileSync("./openssl/hashSigned.txt")
+        var hashEmBase64 = new Buffer(hashSigned).toString('base64')
+    
+        let myBody = {
+          messageJson: cipherTextEmBase64,
+          messageHash: hashEmBase64,
+          myName: myName,
+          yourName: yourName
+        }
+        axios.post('http://localhost:8000/chat/message', myBody)
+          .then(response => {
+            res.send(req.body)
+          })
+          .catch(error => {
+            res.status(400)
+            res.send('ERRO AO CONECTAR AO SERVER')
+          })
+      })
     })
   }
 
