@@ -24,7 +24,7 @@ Trabalho Final da disciplina Segurança da Informação
 
 <br />
 
-> A máquina deve ter instalado o Quasar Framework
+> A máquina deve ter instalado o OpenSSL
 
 <br />
 
