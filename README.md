@@ -28,7 +28,7 @@ Trabalho Final da disciplina Segurança da Informação
 
 <br />
 
-**Back-end - CLIENT:**
+**Back-end 44- CLIENT:**
 
 + Entrar na pasta onde esta o código do back-end
 
@@ -44,11 +44,46 @@ Trabalho Final da disciplina Segurança da Informação
 
 <br />
 
-**Front-end - CLIENT:**
+**Front-end 44 - CLIENT:**
 
 + Entrar na pasta onde esta o código do front-end
 
 `cd MSN-44`
+
++ Instalar dependências
+
+`npm install`
+
++ Compilar e Rodar o projeto
+
+`quasar dev`
+
+<br />
+
+> A máquina deve possuir o Quasar Framework
+<br />
+
+**Back-end 66 - CLIENT:**
+
++ Entrar na pasta onde esta o código do back-end
+
+`cd MSN-backend-66`
+
++ Instalar dependências
+
+`npm install`
+
++ Compilar e Rodar o projeto
+
+`node index.js`
+
+<br />
+
+**Front-end 66 - CLIENT:**
+
++ Entrar na pasta onde esta o código do front-end
+
+`cd MSN-66`
 
 + Instalar dependências
 
