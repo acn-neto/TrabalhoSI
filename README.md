@@ -97,3 +97,7 @@ Trabalho Final da disciplina Segurança da Informação
 
 > A máquina deve possuir o Quasar Framework
 -------------
+
+> O front-end 44 e 66 são iguais, mudando somente a porta que trabalham, o mesmo vale para o back-end client.
+> Para começar um projeto do zero é necessário apagar todos arquivos dentro da pasta openssl dos back-ends client e server. Além disso é necessário apagar o conteúdo dos arquivos .json, sendo que os db.json devem ficar apensas assim {}, e os arquivos offline.json e online.json assim [].
+> Caso queira utilizar o servidor da Amazon, é necessário substituir nos arquivos index.js dos back-end client, a palavra localhost por 18.228.145.180.
