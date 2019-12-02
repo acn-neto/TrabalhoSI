@@ -8,38 +8,57 @@ Trabalho Final da disciplina Segurança da Informação
 
 <br />
 
-**Front-end:**
+**Back-end - SERVER:**
 
 + Entrar na pasta onde esta o código do front-end
 
-`cd MSN`
+`cd Server`
 
 + Instalar dependências
 
 `npm install`
 
-+ Compilar o projeto
++ Compilar e Rodar o projeto
+
+`node index.js`
+
+<br />
+
+> A máquina deve ter instalado o Quasar Framework
+
+<br />
+
+**Back-end - CLIENT:**
+
++ Entrar na pasta onde esta o código do back-end
+
+`cd MSN-backend-44`
+
++ Instalar dependências
+
+`npm install`
+
++ Compilar e Rodar o projeto
+
+`node index.js`
+
+<br />
+
+**Front-end - CLIENT:**
+
++ Entrar na pasta onde esta o código do front-end
+
+`cd MSN-44`
+
++ Instalar dependências
+
+`npm install`
+
++ Compilar e Rodar o projeto
 
 `quasar dev`
 
 <br />
 
-> Para executar mais de uma aplicação basta abrir outro terminal e compilar o projeto novamente, o quasar atribuirá automaticamente outra porta para a aplicação, começando com 8080, 8081 ...
-
-<br />
-
-**Back-end:**
-
-+ Entrar na pasta onde esta o código do back-end
-
-`cd MSN-backend`
-
-+ Instalar dependências
-
-`npm install`
-
-+ Compilar o projeto
-
-`node index.js`
-
+> A máquina deve ter instalado o Quasar Framework
 -------------
