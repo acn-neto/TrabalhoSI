@@ -1,1 +1,0 @@
-[{"sent":false,"message":"farofa"},{"sent":false,"message":"teste"},{"sent":true,"message":"xd"},{"sent":false,"message":"teste"},{"sent":true,"message":"batata"}]

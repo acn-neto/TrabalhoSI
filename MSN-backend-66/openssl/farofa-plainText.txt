@@ -1,1 +1,0 @@
-{"myName":"farofa","yourName":"fuguete","message":"batata"}
