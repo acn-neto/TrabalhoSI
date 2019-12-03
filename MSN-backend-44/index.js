@@ -54,6 +54,7 @@ axios.get('http://localhost:8000/certificate')
 /*************************************************************** FUNCTIONS ***************************************************************/
 var start = (object, arrayCallBack) => {
   // CHAMA PROXIMA ETAPA
+  console.log('\n\nSTART')
   if (arrayCallBack.length > 0) {
     let nexCallBack = arrayCallBack[0]
     arrayCallBack.shift()
@@ -79,7 +80,9 @@ var jsonMessageToString = (object, arrayCallBack) => {
 }
 
 var getSymmetricKeyIfNecessary = (object, arrayCallBack) => {
-  if (!myChat.keys[object.yourName] || !myChat.ivs[object.yourName]) {
+  // PEGA CHAVE SIMETRICA SE NECESSARIO
+  console.log('GET SYMMETRIC KEY, IF NECESSARY')
+  if (!object.key || !object.iv) {
     axios.get(`http://localhost:8000/keys?myName=${object.myName}&yourName=${object.yourName}`)
       .then(response => {
         let emBase64 = response.data
@@ -89,7 +92,9 @@ var getSymmetricKeyIfNecessary = (object, arrayCallBack) => {
   
         openssl(['rsautl', '-decrypt', '-inkey', 'myPK.pem', '-in', 'theKeyCipher.txt', '-out', 'theKey.txt'], function (err) {
           console.log('DECIPHER THE SYMMETRIC KEY')
-          console.log(err.toString())
+          if (err.toString()) {
+            console.error(err.toString())
+          }
 
           let messageJson = fs.readFileSync("./openssl/theKey.txt", "utf8")
           let body = JSON.parse(messageJson)
@@ -127,8 +132,10 @@ var symmetricEncryptionOfMessage = (object, arrayCallBack) => {
   // CIFRA A MENSAGEM
   fs.writeFileSync(`./openssl/${object.id}-plainText.txt`, object.messageJson, "utf8")
   openssl(['enc', '-aes-128-cbc', '-pbkdf2' ,'-in', `${object.id}-plainText.txt`, '-out', `${object.id}-cipherText.txt`, '-K', `${object.key}`, '-iv', `${object.iv}`], function (err) {
-    console.log('CIPHER THE STRING MESSAGE')
-    console.log(err.toString())
+    console.log('CYPHER THE STRING MESSAGE')
+    if (err.toString()) {
+      console.error(err.toString())
+    }
 
     // CHAMA PROXIMA ETAPA
     if (arrayCallBack.length > 0) {
@@ -170,7 +177,9 @@ var generateHashFromMessage64 = (object, arrayCallBack) => {
 var signedTheHashMessage = (object, arrayCallBack) => {
   openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', `${object.id}-hash.txt`, '-out', `${object.id}-signedHash.txt`], function (err) {
     console.log('SIGNING THE HASH MESSAGE')
-    console.log(err.toString())
+    if (err.toString()) {
+      console.error(err.toString())
+    }
 
     // CHAMA PROXIMA ETAPA
     if (arrayCallBack.length > 0) {
@@ -182,6 +191,8 @@ var signedTheHashMessage = (object, arrayCallBack) => {
 }
 
 var signedHashToBase64 = (object, arrayCallBack) => {
+  // TRANSFORMA O HASH PARA BASE64
+  console.log('TRANSFORME THE HASH IN BASE64')
   let signedHash = fs.readFileSync(`./openssl/${object.id}-signedHash.txt`)
   object.signedHashBase64 = new Buffer(signedHash).toString('base64')
 
@@ -203,12 +214,13 @@ var sendMessage = (object, arrayCallBack) => {
   axios.post('http://localhost:8000/chat/message', myBody)
     .then(response => {
       object.res.send(object.req.body)
+      console.log('FINISH')
     })
     .catch(error => {
       object.res.status(400)
       object.res.send('ERRO AO CONECTAR AO SERVER')
     })
-},
+}
 
 var getMessage = (object, arrayCallBack) => {
   // PEGA AS MENSAGENS DO SERVIDOR
@@ -290,7 +302,9 @@ var removeBase64FromSignedHash = (object, arrayCallBack) => {
 var verifyTheHashSigned = (object, arrayCallBack) => {
   openssl(['rsautl', '-verify', '-inkey', 'ac-pukey.pem', '-pubin', '-in', `${object.id}-signedHash.txt`, '-out', `${object.id}-verifiedHash.txt`], function (err) {
     console.log('VERIFY THE HASHS SIGNED')
-    console.log(err.toString())
+    if (err.toString()) {
+      console.error(err.toString())
+    }
     
     // CHAMA PROXIMA ETAPA
     if (arrayCallBack.length > 0) {
@@ -329,6 +343,7 @@ var saveMessage = (object, arrayCallBack) => {
   let messages2 = myChat.messages[object.yourName].filter((el, i) => {
     return i >= object.index
   })
+  console.log('FINISH')
   object.res.send(messages2)
 }
 /***************************************************************** APIs *****************************************************************/
@@ -380,6 +395,7 @@ app.post('/chat/login', function (req, res) {
 
 // LOGOUT
 app.post('/chat/logout', function (req, res) {
+  console.log('LOGOUT')
   let myName = req.body.name.replace(/ /g,'').toLowerCase()
   let chatName = myChat.name.replace(/ /g,'').toLowerCase()
 
@@ -401,12 +417,11 @@ app.post('/chat/logout', function (req, res) {
       avatar: req.body.avatar
     })
     .then(response => {
-      res.send(req.body)
+      res.end()
     })
     .catch(error => {
       console.log(error)
-      res.status(400)
-      res.send('ERRO AO CONECTAR AO SERVER')
+      res.end()
     })
 })
 
@@ -455,7 +470,7 @@ app.post('/chat/message', function (req, res) {
     message: message,
     messageJson: '',
     key: myChat.keys[yourName] || '',
-    iv: myChat.keys[yourName] || '',
+    iv: myChat.ivs[yourName] || '',
     messageBase64: '',
     messageHash: '',
     signedHashBase64: '',
@@ -503,9 +518,9 @@ app.get('/chat/message', function (req, res) {
   }
   
   let steps = [
+    getSymmetricKeyIfNecessary,
     getMessage,
     removeBase64FromEncryptionMessage64,
-    getSymmetricKeyIfNecessary,
     symmetricDecryptionOfMessages,
     plainMessagesToJsong,
     removeBase64FromSignedHash,
@@ -518,11 +533,10 @@ app.get('/chat/message', function (req, res) {
     id: myName,
     myName: myName,
     yourName: yourName,
-    message: message,
     index: index,
     messageJson: '',
     key: myChat.keys[yourName] || '',
-    iv: myChat.keys[yourName] || '',
+    iv: myChat.ivs[yourName] || '',
     messageBase64: '',
     messageHash: '',
     signedHashBase64: '',

@@ -51,6 +51,233 @@ function randomKey() {
     .toString('hex')
     .slice(0, len)
 }
+
+/***************************************************************** FUNCTIONS *****************************************************************/
+var start = (object, arrayCallBack) => {
+  // CHAMA PROXIMA ETAPA
+  console.log('\n\nSTART')
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var removeBase64FromEncryptionMessage64 = (object, arrayCallBack) => {
+  // REMOVE BASE64 DA MENSAGEM CIFRADA
+  console.log('REMOVE BASE64 FROM ENCRYPTION MESSAGE')
+  let encryptionMessage = new Buffer(object.messageBase64, 'base64')
+  fs.writeFileSync(`./openssl/${object.id}-encryptionMessages.txt`, encryptionMessage)
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var symmetricDecryptionOfMessages = (object, arrayCallBack) => {
+  // DECIFRA AS MENSAGENS
+  openssl(['enc', '-aes-128-cbc', '-pbkdf2', '-d' ,'-in', `${object.id}-encryptionMessages.txt`, '-out', `${object.id}-plainMessages.txt`, '-K', `${object.key}`, '-iv', `${object.iv}`], function (err) {
+    console.log('DECIPHER THE MESSAGES')
+    console.log(err.toString())
+
+    // CHAMA PROXIMA ETAPA
+    if (arrayCallBack.length > 0) {
+      let nexCallBack = arrayCallBack[0]
+      arrayCallBack.shift()
+      nexCallBack(object, arrayCallBack)
+    }
+  })
+}
+
+var plainMessagesToJsong = (object, arrayCallBack) => {
+  // TRANSFORMA A MENSAGEM EM JSON
+  console.log('TRANSFORM JSON MESSAGE TO STRING')
+  var messagesString = fs.readFileSync(`./openssl/${object.id}-plainMessages.txt`, "utf8")
+  object.messageJson = JSON.parse(messagesString)
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var removeBase64FromSignedHash = (object, arrayCallBack) => {
+  // REMOVE BASE64 DO HASH ASSINADO
+  console.log('REMOVE BASE64 FROM SIGNED HASH')
+  let signedHash = new Buffer(object.signedHashBase64, 'base64')
+  fs.writeFileSync(`./openssl/${object.id}-signedHash.txt`, signedHash)
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var verifyTheHashSigned = (object, arrayCallBack) => {
+  openssl(['rsautl', '-verify', '-inkey', `${object.id}-pu.pem`, '-pubin', '-in', `${object.id}-signedHash.txt`, '-out', `${object.id}-verifiedHash.txt`], function (err) {
+    console.log('VERIFY THE HASHS SIGNED')
+    if (err.toString()) {
+      console.error(err.toString())
+    }
+    
+    // CHAMA PROXIMA ETAPA
+    if (arrayCallBack.length > 0) {
+      let nexCallBack = arrayCallBack[0]
+      arrayCallBack.shift()
+      nexCallBack(object, arrayCallBack)
+    }
+  })
+}
+
+var compareMessageAndHash = (object, arrayCallBack) => {
+  // VERIFICA A INTEGRIDADE
+  console.log('COMPARE MESSAGE AND HASH')
+  var hash = fs.readFileSync(`./openssl/${object.id}-verifiedHash.txt`, "utf8")
+
+  if(!bcrypt.compareSync(object.messageBase64, hash)) {
+    object.res.status(401)
+    console.log('INTEGRIDADE COMPROMETIDA')
+    object.res.send('INTEGRIDADE COMPROMETIDA')
+  } else {
+    // CHAMA PROXIMA ETAPA
+    if (arrayCallBack.length > 0) {
+      let nexCallBack = arrayCallBack[0]
+      arrayCallBack.shift()
+      nexCallBack(object, arrayCallBack)
+    }
+  }
+}
+
+var saveMessage = (object, arrayCallBack) => {
+  // SALVA A MENSAGEM
+  console.log('SAVE MESSAGE')
+
+  let myName = object.messageJson.myName.replace(/ /g,'').toLowerCase()
+  let yourName = object.messageJson.yourName.replace(/ /g,'').toLowerCase()
+  let message = object.messageJson.message
+
+  if (!chat[myName] || !chat[yourName]) {
+    res.status(400)
+    res.send('EMISSOR OU RECEPTOR INVALIDO')
+  }
+
+  if (!chat[myName].messages[yourName]) {
+    chat[myName].messages[yourName] = []
+    chat[yourName].messages[myName] = []
+  }
+
+  chat[myName].messages[yourName].push({ sent: true, message: message })
+  chat[yourName].messages[myName].push({ sent: false, message: message })
+
+  fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
+
+  console.log('FINISH')
+  object.res.send(object.req.body)
+}
+
+var jsonMessageToString = (object, arrayCallBack) => {
+  // TRANSFORMA A MENSAGEM EM JSON EM STRING
+  object.messageJson = JSON.stringify(object.message)
+  console.log('TRANSFORM JSON MESSAGE TO STRING')
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var symmetricEncryptionOfMessage = (object, arrayCallBack) => {
+  // CIFRA A MENSAGEM
+  fs.writeFileSync(`./openssl/${object.id}-plainText.txt`, object.messageJson, "utf8")
+  openssl(['enc', '-aes-128-cbc', '-pbkdf2' ,'-in', `${object.id}-plainText.txt`, '-out', `${object.id}-cipherText.txt`, '-K', `${object.key}`, '-iv', `${object.iv}`], function (err) {
+    console.log('CYPHER THE STRING MESSAGE')
+    if (err.toString()) {
+      console.error(err.toString())
+    }
+
+    // CHAMA PROXIMA ETAPA
+    if (arrayCallBack.length > 0) {
+      let nexCallBack = arrayCallBack[0]
+      arrayCallBack.shift()
+      nexCallBack(object, arrayCallBack)
+    }
+  })
+}
+
+var encryptionMessageToBase64 = (object, arrayCallBack) => {
+  // TRANSFORMA MENSAGEM CIFRADA EM BASE64
+  console.log('TRANSFORM ENCRYPTION MESSAGE TO BASE64')
+  var cipherText = fs.readFileSync(`./openssl/${object.id}-cipherText.txt`)
+  object.messageBase64 = new Buffer(cipherText).toString('base64')
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var generateHashFromMessage64 = (object, arrayCallBack) => {
+  // GERA O HASH A PARTIR DA MENSAGEM
+  console.log('GENERATE HASH FROM MESSAGE BASE64')
+  object.messageHash = bcrypt.hashSync(object.messageBase64, saltRounds)
+  fs.writeFileSync(`./openssl/${object.id}-hash.txt`, object.messageHash, "utf8")
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var signedTheHashMessage = (object, arrayCallBack) => {
+  openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', `${object.id}-hash.txt`, '-out', `${object.id}-signedHash.txt`], function (err) {
+    console.log('SIGNING THE HASH MESSAGE')
+    if (err.toString()) {
+      console.error(err.toString())
+    }
+
+    // CHAMA PROXIMA ETAPA
+    if (arrayCallBack.length > 0) {
+      let nexCallBack = arrayCallBack[0]
+      arrayCallBack.shift()
+      nexCallBack(object, arrayCallBack)
+    }
+  })
+}
+
+var signedHashToBase64 = (object, arrayCallBack) => {
+  // TRANSFORMA O HASH PARA BASE64
+  console.log('TRANSFORME THE HASH IN BASE64')
+  let signedHash = fs.readFileSync(`./openssl/${object.id}-signedHash.txt`)
+  object.signedHashBase64 = new Buffer(signedHash).toString('base64')
+
+  // CHAMA PROXIMA ETAPA
+  if (arrayCallBack.length > 0) {
+    let nexCallBack = arrayCallBack[0]
+    arrayCallBack.shift()
+    nexCallBack(object, arrayCallBack)
+  }
+}
+
+var sendMessage = (object, arrayCallBack) => {
+  let myBody = {
+    messageJson: object.messageBase64,
+    messageHash: object.signedHashBase64,
+  }
+  object.res.send(myBody)
+}
 /***************************************************************** APIs *****************************************************************/
 
 // SEND AC CERTIFICATE
@@ -170,62 +397,30 @@ app.get('/chat/people', function (req, res) {
 
 // SENT MESSAGE
 app.post('/chat/message', function (req, res) {
-  let cipherTextEmBase64 = req.body.messageJson
-  var cipherText = new Buffer(cipherTextEmBase64, 'base64')
+  let steps = [
+    removeBase64FromEncryptionMessage64,
+    symmetricDecryptionOfMessages,
+    plainMessagesToJsong,
+    removeBase64FromSignedHash,
+    verifyTheHashSigned,
+    compareMessageAndHash,
+    saveMessage
+  ]
 
-  let hashSignedEmBase64 = req.body.messageHash
-  var hashSigned = new Buffer(hashSignedEmBase64, 'base64')
+  let object = {
+    id: req.body.myName,
+    myName: req.body.myName,
+    yourName: req.body.yourName,
+    messageJson: '',
+    key: chat[req.body.myName].keys[req.body.yourName],
+    iv: chat[req.body.myName].ivs[req.body.yourName],
+    messageBase64: req.body.messageJson,
+    signedHashBase64: req.body.messageHash,
+    res: res,
+    req: req
+  }
 
-  var myName = req.body.myName
-  var yourName = req.body.yourName
-
-  var key = chat[myName].keys[yourName]
-  var iv = chat[myName].ivs[yourName]
-
-  fs.writeFileSync("./openssl/cipherText.txt", cipherText)
-  openssl(['enc', '-aes-128-cbc', '-pbkdf2', '-d' ,'-in', 'cipherText.txt', '-out', 'plainText.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
-    console.log('DECIPHER THE MESSAGE')
-    console.log(err.toString())
-
-    var messageJson = fs.readFileSync("./openssl/plainText.txt", "utf8")
-
-    fs.writeFileSync("./openssl/hashSigned.txt", hashSigned)
-    openssl(['rsautl', '-verify', '-inkey', `${myName}-pu.pem`, '-pubin', '-in', 'hashSigned.txt', '-out', 'hashVerified.txt'], function (err) {
-      console.log('DECYPHER THE HASH SIGNED')
-      console.log(err.toString())
-  
-      var messageHash = fs.readFileSync("./openssl/hashVerified.txt", "utf8")
-  
-      if(!bcrypt.compareSync(cipherTextEmBase64, messageHash)) {
-        res.status(401)
-        console.log('INTEGRIDADE COMPROMETIDA')
-        res.send('INTEGRIDADE COMPROMETIDA')
-      } else {
-        let body = JSON.parse(messageJson)
-    
-        let myName = body.myName.replace(/ /g,'').toLowerCase()
-        let yourName = body.yourName.replace(/ /g,'').toLowerCase()
-        let message = body.message
-      
-        if (!chat[myName] || !chat[yourName]) {
-          res.status(400)
-          res.send('EMISSOR OU RECEPTOR INVALIDO')
-        }
-      
-        if (!chat[myName].messages[yourName]) {
-          chat[myName].messages[yourName] = []
-          chat[yourName].messages[myName] = []
-        }
-      
-        chat[myName].messages[yourName].push({ sent: true, message: message })
-        chat[yourName].messages[myName].push({ sent: false, message: message })
-      
-        fs.writeFileSync("./db.json", JSON.stringify(chat), "utf8")
-      
-        res.send(req.body)
-      }
-    })
-  })
+  start(object, steps)
 })
 
 // GET ALL MESSAGES
@@ -248,37 +443,32 @@ app.get('/chat/messages', function (req, res) {
     chat[yourName].messages[myName] = []
   }
 
-  var key = chat[myName].keys[yourName]
-  var iv = chat[myName].ivs[yourName]
-  var messages = chat[myName].messages[yourName]
-  var messagesJSON = JSON.stringify(messages)
+  let steps = [
+    jsonMessageToString,
+    symmetricEncryptionOfMessage,
+    encryptionMessageToBase64,
+    generateHashFromMessage64,
+    signedTheHashMessage,
+    signedHashToBase64,
+    sendMessage
+  ]
 
-  fs.writeFileSync("./openssl/plainTexts.txt", messagesJSON, "utf8")
-  openssl(['enc', '-aes-128-cbc', '-pbkdf2' ,'-in', 'plainTexts.txt', '-out', 'cipherTexts.txt', '-K', `${key}`, '-iv', `${iv}`], function (err) {
-    console.log('CIPHER THE MESSAGEs')
-    console.log(err.toString())
+  let object = {
+    id: myName,
+    myName: myName,
+    yourName: yourName,
+    message: chat[myName].messages[yourName],
+    messageJson: '',
+    key: chat[myName].keys[yourName],
+    iv: chat[myName].ivs[yourName],
+    messageBase64: '',
+    messageHash: '',
+    signedHashBase64: '',
+    res: res,
+    req: req
+  }
 
-    var cipherTexts = fs.readFileSync("./openssl/cipherTexts.txt")
-    var cipherTextsEmBase64 = new Buffer(cipherTexts).toString('base64')
-
-    var messagesHash = bcrypt.hashSync(cipherTextsEmBase64, saltRounds)
-    
-      fs.writeFileSync("./openssl/hashs.txt", messagesHash, "utf8")
-    
-      openssl(['rsautl', '-sign', '-inkey', 'myPK.pem', '-in', 'hashs.txt', '-out', 'hashsSigned.txt'], function (err) {
-        console.log('SIGNING THE HASHs')
-        console.log(err.toString())
-    
-        var hashsSigned = fs.readFileSync("./openssl/hashsSigned.txt")
-        var hashsEmBase64 = new Buffer(hashsSigned).toString('base64')
-    
-        let myBody = {
-          messageJson: cipherTextsEmBase64,
-          messageHash: hashsEmBase64
-        }
-        res.send(myBody)
-      })
-  })
+  start(object, steps)
 })
 
 // RODA O SERVIDOR

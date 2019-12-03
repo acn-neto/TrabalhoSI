@@ -210,14 +210,14 @@ export default {
   created () {
     setInterval(this.getMessages, 1000)
     setInterval(this.getPeople, 1000)
-    window.onbeforeunload = function (e) {
+    window.addEventListener('beforeunload', (e) => {
       if (this.name) {
         this.$axios.post('logout', {
           name: this.name,
           avatar: this.myAvatar
         })
       }
-    }
+    }, true)
   },
 
   methods: {
