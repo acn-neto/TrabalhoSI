@@ -91,7 +91,7 @@ app.post('/chat/login', function (req, res) {
   let name = req.body.name
   let id = name.replace(/ /g,'').toLowerCase()
   let avatar = req.body.avatar
-  let extra = req.body.extra
+  let clientPuKey = req.body.puKey
 
   // organiza as pessoas onlines e offlines
   if(!online.find(el => {
@@ -119,8 +119,8 @@ app.post('/chat/login', function (req, res) {
       keys: {},
       ivs: {}
     }
-    if (extra) {
-      fs.writeFileSync(`./openssl/${id}-pu.pem`, extra, "utf8")
+    if (clientPuKey) {
+      fs.writeFileSync(`./openssl/${id}-pu.pem`, clientPuKey, "utf8")
     }
   }
 
